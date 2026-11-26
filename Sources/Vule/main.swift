@@ -83,7 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func trackMouse() {
         let p = NSEvent.mouseLocation, f = panel.frame, s = ui.shapeSize
         let island = NSRect(x: f.midX + ui.shift - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height).insetBy(dx: -4, dy: -4)
-        let inside = island.contains(p)
+        // The chin (dots + title under the camera) counts as part of the island for hovering.
+        let cw = ui.expanded || store.peek != nil ? 0 : Chin.layout(store).0
+        let chin = NSRect(x: f.midX - cw / 2, y: f.maxY - ui.notch.height - 23, width: cw, height: 23)
+        let inside = island.contains(p) || (!store.sessions.isEmpty && chin.contains(p))
         panel.ignoresMouseEvents = !inside
 
         if inside {
@@ -129,10 +132,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         seen = seen.filter { id in sessions.contains { $0.id == id } }
     }
 
-    /// Screen position of the i-th dot in the collapsed row (mirrors TopRow's layout).
+    /// Screen position of the i-th dot in the chin under the camera (mirrors Chin's layout).
     func dotPoint(_ i: Int, of n: Int) -> CGPoint {
-        let f = panel.frame
-        return CGPoint(x: f.midX - ui.notch.width / 2 - 8 - 7 - CGFloat(n - 1 - i) * 21, y: f.maxY - ui.notch.height / 2)
+        let f = panel.frame, w = Chin.layout(store).0
+        return CGPoint(x: f.midX - w / 2 + 10 + 7 + CGFloat(i) * 21, y: f.maxY - ui.notch.height - 10)
     }
 
     func expand(focusField: Bool) {

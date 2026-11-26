@@ -130,9 +130,9 @@ struct TopRow: View {
     /// Each wing hugs its own content (dots left, title right when shown), capped so menu-bar items stay visible.
     static func wings(_ store: SessionStore, full: Bool = false) -> (CGFloat, CGFloat) {
         let n = CGFloat(store.sessions.count)
-        let dots = n * 14 + max(0, n - 1) * 7 + 16
+        let dots = full ? n * 14 + max(0, n - 1) * 7 + 16 : 14   // collapsed: dots live in the chin
         let title = store.focused.map { !full ? 14 : 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
-        return (min(150, max(30, dots)), min(150, max(14, title)))
+        return (min(150, max(14, dots)), min(150, max(14, title)))
     }
 
     var body: some View {
@@ -141,14 +141,14 @@ struct TopRow: View {
         let wing = max(l, r)
         HStack(spacing: 0) {
             HStack(spacing: 7) {
-                ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) }
+                if wide { ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) } }
             }
             .padding(.trailing, 8)
             .frame(width: full ? wing : l, alignment: .trailing)
 
             Color.clear.frame(width: ui.notch.width)
                 .overlay(alignment: .top) {
-                    if !wide, let f = store.focused { Chin(session: f).offset(y: ui.notch.height).transition(.blurReplace) }
+                    if !wide, !store.sessions.isEmpty { Chin().offset(y: ui.notch.height) }
                 }
 
             ZStack(alignment: .leading) {
@@ -177,32 +177,51 @@ struct TopRow: View {
     }
 }
 
-/// The focused session's codename hanging just below the camera, like a drip off the island.
+/// Session dots + the focused session's codename, hanging just below the camera like a drip off the island.
 struct Chin: View {
     @Environment(SessionStore.self) var store
-    @Environment(NotchUI.self) var ui
-    let session: Session
+
+    static let font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let maxWidth: CGFloat = 380
+
+    /// (whole strip width, title slot width) — shared with the signal code so rings start from the right dot.
+    static func layout(_ store: SessionStore) -> (CGFloat, CGFloat) {
+        let n = CGFloat(store.sessions.count)
+        let dots = n * 14 + max(0, n - 1) * 7
+        guard let f = store.focused else { return (dots + 20, 0) }
+        let room = maxWidth - 20 - dots - 8 - 18   // padding, dots, gap, emoji
+        let title = max(0, min(room, ceil((store.title(f) as NSString).size(withAttributes: [.font: font]).width)))
+        return (20 + dots + 8 + 18 + title, title)
+    }
 
     var body: some View {
-        let (a, b) = store.glow(session), t = store.title(session)
-        HStack(spacing: 4) {
-            Text(store.emoji(session)).font(.system(size: 10))
-            Text(t).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(1).hidden()
-                .overlay { ShimmerText(text: t, a: a, b: b, size: 11, period: session.status == .busy ? 1.1 : 2.0) }
-                .id("\(session.id)\(session.status == .busy)")
+        let (_, tw) = Self.layout(store)
+        HStack(spacing: 8) {
+            HStack(spacing: 7) {
+                ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) }
+            }
+            if let f = store.focused {
+                let (a, b) = store.glow(f), t = store.title(f)
+                HStack(spacing: 4) {
+                    Text(store.emoji(f)).font(.system(size: 10)).frame(width: 14)
+                    ShimmerText(text: t, a: a, b: b, size: 11, period: f.status == .busy ? 1.1 : 2.0)
+                        .frame(width: tw, height: 14)
+                        .id("\(f.id)\(f.status == .busy)")
+                }
+                .frame(height: 20)
+                .overlay(alignment: .bottom) {
+                    // Progress line under the title while the session works.
+                    if f.status == .busy { Glow(kind: .stream, a: a, b: b).frame(height: 2).offset(y: 1).transition(.opacity) }
+                }
+                .id(f.id)
+                .transition(.blurReplace)
+            }
         }
         .padding(.horizontal, 10)
         .frame(height: 20)
-        .padding(.bottom, 2)
-        .overlay(alignment: .bottom) {
-            // Progress line under the title while the session works.
-            if session.status == .busy {
-                Glow(kind: .stream, a: a, b: b).frame(height: 2).padding(.horizontal, 10).offset(y: -1).transition(.opacity)
-            }
-        }
-        // Hug the title but never grow past the camera; longer names end in "…".
-        .frame(width: min(ui.notch.width - 16, 38 + ceil((t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold)]).width)))
-        .background(UnevenRoundedRectangle(bottomLeadingRadius: 9, bottomTrailingRadius: 9).fill(.black))
+        .padding(.bottom, 3)
+        .fixedSize()
+        .background(UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10).fill(.black))
     }
 }
 
