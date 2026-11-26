@@ -31,13 +31,15 @@ Requires macOS 26+ and Ghostty 1.4+.
 ## Install
 
 ```sh
-scripts/build.sh --open              # builds build/Vule.app and launches it
-scripts/install-claude-hooks.sh      # Claude status hooks (restart Claude sessions afterwards)
+scripts/vule.sh install              # build + launch the app and install the Claude hooks
+scripts/vule.sh uninstall            # quit, remove the hooks, app, ~/.vule and settings
 ```
+
+Restart Claude sessions afterwards so they pick up the hook change. Under the hood that's `scripts/build.sh --open` plus `scripts/install-claude-hooks.sh [--uninstall]`.
 
 Copilot sessions are detected automatically from `~/.copilot/session-state`. On first reply, macOS asks for Automation permission to control Ghostty. The app is ad-hoc signed, so the permission prompt may reappear after rebuilds.
 
-Uninstall the hooks with `scripts/install-claude-hooks.sh --uninstall`. App state lives in `~/.vule`.
+App state lives in `~/.vule`.
 
 ## Debug
 
