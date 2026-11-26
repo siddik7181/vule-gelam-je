@@ -102,7 +102,7 @@ struct NotchRoot: View {
             ExpandedView(selected: selected)
         } else if let p = store.peek, let live = store.sessions.first(where: { $0.id == p.id }) {
             VStack(spacing: 0) {
-                TopRow(symmetric: true)
+                TopRow(full: true)
                 SessionCard(session: live, selected: true, compact: true)
                     .padding(.horizontal, 14).padding(.bottom, 12).padding(.top, 2)
             }
@@ -131,25 +131,25 @@ struct NotchRoot: View {
 struct TopRow: View {
     @Environment(SessionStore.self) var store
     @Environment(NotchUI.self) var ui
-    var symmetric = false   // the peek card is centred, so its row needs equal wings
+    var full = false   // peek/expanded: centred row with the title; collapsed shows just the emoji to keep menu-bar icons visible
 
-    /// Each wing hugs its own content (dots left, title right), capped so menu-bar items stay visible.
-    static func wings(_ store: SessionStore) -> (CGFloat, CGFloat) {
+    /// Each wing hugs its own content (dots left, emoji/title right), capped so menu-bar items stay visible.
+    static func wings(_ store: SessionStore, full: Bool = false) -> (CGFloat, CGFloat) {
         let n = CGFloat(store.sessions.count)
         let dots = n * 14 + max(0, n - 1) * 7 + 16
-        let title = store.focused.map { 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
+        let title = store.focused.map { !full ? 34 : 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
         return (min(150, max(30, dots)), min(150, max(30, title)))
     }
 
     var body: some View {
-        let (l, r) = Self.wings(store)
-        let wing = symmetric ? max(l, r) : 0
+        let (l, r) = Self.wings(store, full: full)
+        let wing = max(l, r)
         HStack(spacing: 0) {
             HStack(spacing: 7) {
                 ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) }
             }
             .padding(.trailing, 8)
-            .frame(width: symmetric ? wing : l, alignment: .trailing)
+            .frame(width: full ? wing : l, alignment: .trailing)
 
             Color.clear.frame(width: ui.notch.width)
 
@@ -158,20 +158,22 @@ struct TopRow: View {
                     HStack(spacing: 6) {
                         Text(store.emoji(f)).font(.system(size: 12))
                         let (a, b) = store.glow(f)
-                        // Hidden Text sizes the slot; the shimmer itself is a CA gradient masked by the glyphs.
-                        Text(store.title(f))
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .lineLimit(1)
-                            .hidden()
-                            .overlay { ShimmerText(text: store.title(f), a: a, b: b, period: f.status == .busy ? 1.1 : 2.0) }
-                            .id("\(f.id)\(f.status == .busy)")
+                        if full {
+                            // Hidden Text sizes the slot; the shimmer itself is a CA gradient masked by the glyphs.
+                            Text(store.title(f))
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .lineLimit(1)
+                                .hidden()
+                                .overlay { ShimmerText(text: store.title(f), a: a, b: b, period: f.status == .busy ? 1.1 : 2.0) }
+                                .id("\(f.id)\(f.status == .busy)")
+                        }
                     }
                     .id(f.id)
                     .transition(.blurReplace)
                 }
             }
             .padding(.leading, 8)
-            .frame(width: symmetric ? wing : r, alignment: .leading)
+            .frame(width: full ? wing : r, alignment: .leading)
         }
         .frame(height: ui.notch.height)
     }
@@ -212,7 +214,7 @@ struct ExpandedView: View {
     var body: some View {
         @Bindable var ui = ui
         VStack(spacing: 10) {
-            TopRow()
+            TopRow(full: true)
             if ui.cardsHeight <= 330 { cards } else { ScrollView { cards }.scrollIndicators(.never).frame(height: 330) }
 
             if let s = selected { replyBar(s, draft: $ui.draft) }
