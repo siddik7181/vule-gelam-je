@@ -115,13 +115,7 @@ struct NotchRoot: View {
         } else if store.sessions.isEmpty {
             Color.clear.frame(width: ui.notch.width, height: ui.notch.height)
         } else {
-            TopRow().overlay(alignment: .bottom) {
-                if let f = store.focused, f.status == .busy {
-                    let (a, b) = store.glow(f)
-                    Glow(kind: .stream, a: a, b: b).frame(height: 2).padding(.horizontal, 22).offset(y: -1)
-                        .transition(.opacity)
-                }
-            }
+            TopRow()
         }
     }
 }
@@ -131,18 +125,19 @@ struct NotchRoot: View {
 struct TopRow: View {
     @Environment(SessionStore.self) var store
     @Environment(NotchUI.self) var ui
-    var full = false   // peek/expanded: centred row with the title; collapsed shows just the emoji to keep menu-bar icons visible
+    var full = false   // peek/expanded: centred row with the title. Collapsed, the title lives in the chin under the camera
 
-    /// Each wing hugs its own content (dots left, emoji/title right), capped so menu-bar items stay visible.
+    /// Each wing hugs its own content (dots left, title right when shown), capped so menu-bar items stay visible.
     static func wings(_ store: SessionStore, full: Bool = false) -> (CGFloat, CGFloat) {
         let n = CGFloat(store.sessions.count)
         let dots = n * 14 + max(0, n - 1) * 7 + 16
-        let title = store.focused.map { !full ? 34 : 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
-        return (min(150, max(30, dots)), min(150, max(30, title)))
+        let title = store.focused.map { !full ? 14 : 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
+        return (min(150, max(30, dots)), min(150, max(14, title)))
     }
 
     var body: some View {
-        let (l, r) = Self.wings(store, full: full)
+        let wide = full
+        let (l, r) = Self.wings(store, full: wide)
         let wing = max(l, r)
         HStack(spacing: 0) {
             HStack(spacing: 7) {
@@ -152,21 +147,23 @@ struct TopRow: View {
             .frame(width: full ? wing : l, alignment: .trailing)
 
             Color.clear.frame(width: ui.notch.width)
+                .overlay(alignment: .top) {
+                    if !wide, let f = store.focused { Chin(session: f).offset(y: ui.notch.height).transition(.blurReplace) }
+                }
 
-            Group {
-                if let f = store.focused {
+            ZStack(alignment: .leading) {
+                Color.clear   // keeps the wing's width even when it's empty, so the notch gap stays over the camera
+                if wide, let f = store.focused {
                     HStack(spacing: 6) {
                         Text(store.emoji(f)).font(.system(size: 12))
                         let (a, b) = store.glow(f)
-                        if full {
-                            // Hidden Text sizes the slot; the shimmer itself is a CA gradient masked by the glyphs.
-                            Text(store.title(f))
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .lineLimit(1)
-                                .hidden()
-                                .overlay { ShimmerText(text: store.title(f), a: a, b: b, period: f.status == .busy ? 1.1 : 2.0) }
-                                .id("\(f.id)\(f.status == .busy)")
-                        }
+                        // Hidden Text sizes the slot; the shimmer itself is a CA gradient masked by the glyphs.
+                        Text(store.title(f))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .hidden()
+                            .overlay { ShimmerText(text: store.title(f), a: a, b: b, period: f.status == .busy ? 1.1 : 2.0) }
+                            .id("\(f.id)\(f.status == .busy)")
                     }
                     .id(f.id)
                     .transition(.blurReplace)
@@ -174,8 +171,38 @@ struct TopRow: View {
             }
             .padding(.leading, 8)
             .frame(width: full ? wing : r, alignment: .leading)
+            .clipped()
         }
         .frame(height: ui.notch.height)
+    }
+}
+
+/// The focused session's codename hanging just below the camera, like a drip off the island.
+struct Chin: View {
+    @Environment(SessionStore.self) var store
+    @Environment(NotchUI.self) var ui
+    let session: Session
+
+    var body: some View {
+        let (a, b) = store.glow(session), t = store.title(session)
+        HStack(spacing: 4) {
+            Text(store.emoji(session)).font(.system(size: 10))
+            Text(t).font(.system(size: 11, weight: .semibold, design: .rounded)).lineLimit(1).hidden()
+                .overlay { ShimmerText(text: t, a: a, b: b, size: 11, period: session.status == .busy ? 1.1 : 2.0) }
+                .id("\(session.id)\(session.status == .busy)")
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 20)
+        .padding(.bottom, 2)
+        .overlay(alignment: .bottom) {
+            // Progress line under the title while the session works.
+            if session.status == .busy {
+                Glow(kind: .stream, a: a, b: b).frame(height: 2).padding(.horizontal, 10).offset(y: -1).transition(.opacity)
+            }
+        }
+        // Hug the title but never grow past the camera; longer names end in "…".
+        .frame(width: min(ui.notch.width - 16, 38 + ceil((t as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold)]).width)))
+        .background(UnevenRoundedRectangle(bottomLeadingRadius: 9, bottomTrailingRadius: 9).fill(.black))
     }
 }
 
@@ -493,6 +520,7 @@ struct ShimmerText: NSViewRepresentable {
     let text: String
     let a: NSColor
     let b: NSColor
+    var size: CGFloat = 12
     let period: Double
 
     final class View: NSView {
@@ -530,9 +558,9 @@ struct ShimmerText: NSViewRepresentable {
         g.colors = band + band + band
         g.locations = (0..<3).flatMap { k in stops.map { NSNumber(value: (Double(k) + $0) / 3) } }
         g.startPoint = .init(x: 0, y: 0.5); g.endPoint = .init(x: 1, y: 0.5)
-        let base = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        t.font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 12) } ?? base
-        t.fontSize = 12
+        let base = NSFont.systemFont(ofSize: size, weight: .semibold)
+        t.font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: size) } ?? base
+        t.fontSize = size
         t.string = text
         t.foregroundColor = NSColor.black.cgColor
         t.truncationMode = .end

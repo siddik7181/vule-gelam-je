@@ -2,10 +2,10 @@
 
 A notch island for macOS that shows which Claude Code or Copilot CLI session you're typing into, and which other sessions are busy, waiting on you, or done. You can reply to any of them from the notch.
 
-![Collapsed island: session dots and the focused session's emoji](docs/collapsed.png)
+![Collapsed island: session dots and the focused session's codename under the camera](docs/collapsed.png)
 
 - **Dots** beside the notch, one per session. Rings radiate from a busy dot like a signal, around a spinning comet; fast orange signal rings mean it needs you, a ring means done, and a dim dot means idle.
-- **Codename** of the focused Ghostty terminal's session, named on-device by FoundationModels. Collapsed, the island shows just its emoji so menu-bar icons stay visible; the full title appears on hover. The title has a glowing highlight that streams left to right, and a flowing line runs under the island while that session works.
+- **Codename** of the focused Ghostty terminal's session, named on-device by FoundationModels. It hangs in a small strip just under the camera, so the menu bar beside the notch stays free for your icons. The title has a glowing highlight that streams left to right, and a flowing line runs under it while that session works.
 - **Hover** the island or press **⌘⇧Space** to see every session and reply. Text is typed into the chosen terminal through Ghostty's AppleScript, so no window focus flicker. When a session asks a question (Claude's AskUserQuestion, Copilot's ask_user) or wants permission, its card shows the question and options. Click an option to answer it in the terminal; Vule presses ↓ and Enter for you. **Open ↗** jumps to the session's terminal.
 
 ![Expanded island: every session, the question options, and the reply box](docs/expanded.png)

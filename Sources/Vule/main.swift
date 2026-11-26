@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var seen: Set<String> = []   // waiting sessions you've already looked at: no more signal
     private var hoverSince: Date?
     private var outsideSince: Date?
+    private var openedByHotkey = false
     private static let size = NSSize(width: 720, height: 460)
 
     func applicationDidFinishLaunching(_ note: Notification) {
@@ -88,12 +89,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if inside {
             outsideSince = nil
             hoverSince = hoverSince ?? Date()
-            // Small dwell so sweeping toward the menu bar doesn't pop the island open.
-            if !ui.expanded, !store.sessions.isEmpty, Date().timeIntervalSince(hoverSince!) > 0.18 { expand(focusField: false) }
+            // Deliberate dwell (and no button held) so reaching for the menu bar or a tab doesn't pop the island open under the click.
+            if !ui.expanded, !store.sessions.isEmpty, NSEvent.pressedMouseButtons == 0,
+               Date().timeIntervalSince(hoverSince!) > 0.4 { expand(focusField: false) }
         } else {
             hoverSince = nil
             outsideSince = outsideSince ?? Date()
-            if ui.expanded, !ui.pinned, Date().timeIntervalSince(outsideSince!) > 0.35 { collapse() }
+            // Leaving hands the keyboard back, unless it was opened with ⌘⇧Space or you've started typing a reply.
+            let keep = ui.pinned && (openedByHotkey || !ui.draft.isEmpty)
+            if ui.expanded, !keep, Date().timeIntervalSince(outsideSince!) > 0.35 { collapse() }
         }
     }
 
@@ -143,13 +147,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func collapse() {
+        openedByHotkey = false
         ui.expanded = false
         ui.pinned = false
         ui.focusField = false
         if panel.isKeyWindow {
-            // Hand the keyboard back to whatever app (Ghostty) had it.
+            // Hand the keyboard back to whatever app (Ghostty) had it: the panel never activates Vule, so that app is still
+            // frontmost, but its window has to be made key again or keystrokes go nowhere.
             panel.orderOut(nil)
             panel.orderFrontRegardless()
+            NSWorkspace.shared.frontmostApplication?.activate()
         }
     }
 
@@ -158,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !store.sessions.isEmpty else { NSSound.beep(); return }
         expand(focusField: true)
         ui.pinned = true
+        openedByHotkey = true
         panel.makeKey()
     }
 
