@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// The panel is mostly transparent, so it only takes the mouse while the pointer is over the island.
     func trackMouse() {
         let p = NSEvent.mouseLocation, f = panel.frame, s = ui.shapeSize
-        let island = NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height).insetBy(dx: -4, dy: -4)
+        let island = NSRect(x: f.midX + ui.shift - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height).insetBy(dx: -4, dy: -4)
         let inside = island.contains(p)
         panel.ignoresMouseEvents = !inside
 

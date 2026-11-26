@@ -8,6 +8,7 @@ final class NotchUI {
     var selectedID: String?
     var draft = ""
     var shapeSize: CGSize = .zero
+    var shift: CGFloat = 0         // x offset that keeps the notch gap over the camera when the wings differ
     var cardsHeight: CGFloat = 0   // natural height of the session list; past 330pt it scrolls
     var focusField = false
     var onRelease: () -> Void = {}
@@ -66,6 +67,8 @@ struct NotchRoot: View {
                     .shadow(color: .black.opacity(ui.expanded ? 0.45 : 0), radius: 18, y: 8)
                 }
                 .onGeometryChange(for: CGSize.self) { $0.size } action: { if ui.shapeSize != $0 { ui.shapeSize = $0 } }
+                .offset(x: shift)
+                .onChange(of: shift, initial: true) { ui.shift = shift }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -84,6 +87,12 @@ struct NotchRoot: View {
         }
     }
 
+    var shift: CGFloat {
+        guard !ui.expanded, store.peek == nil, !store.sessions.isEmpty else { return 0 }
+        let (l, r) = TopRow.wings(store)
+        return (r - l) / 2
+    }
+
     var selected: Session? {
         store.sessions.first { $0.id == ui.selectedID } ?? store.focused ?? store.sessions.first
     }
@@ -93,7 +102,7 @@ struct NotchRoot: View {
             ExpandedView(selected: selected)
         } else if let p = store.peek, let live = store.sessions.first(where: { $0.id == p.id }) {
             VStack(spacing: 0) {
-                TopRow()
+                TopRow(symmetric: true)
                 SessionCard(session: live, selected: true, compact: true)
                     .padding(.horizontal, 14).padding(.bottom, 12).padding(.top, 2)
             }
@@ -122,19 +131,25 @@ struct NotchRoot: View {
 struct TopRow: View {
     @Environment(SessionStore.self) var store
     @Environment(NotchUI.self) var ui
+    var symmetric = false   // the peek card is centred, so its row needs equal wings
+
+    /// Each wing hugs its own content (dots left, title right), capped so menu-bar items stay visible.
+    static func wings(_ store: SessionStore) -> (CGFloat, CGFloat) {
+        let n = CGFloat(store.sessions.count)
+        let dots = n * 14 + max(0, n - 1) * 7 + 16
+        let title = store.focused.map { 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
+        return (min(150, max(30, dots)), min(150, max(30, title)))
+    }
 
     var body: some View {
-        // Wings hug their content (both sides equal so the notch stays centred), capped so menu-bar items stay visible.
-        let n = CGFloat(store.sessions.count)
-        let dots = n * 14 + max(0, n - 1) * 7 + 12
-        let title = store.focused.map { 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
-        let wing = min(140, max(44, dots, title))
+        let (l, r) = Self.wings(store)
+        let wing = symmetric ? max(l, r) : 0
         HStack(spacing: 0) {
             HStack(spacing: 7) {
                 ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) }
             }
             .padding(.trailing, 8)
-            .frame(width: wing, alignment: .trailing)
+            .frame(width: symmetric ? wing : l, alignment: .trailing)
 
             Color.clear.frame(width: ui.notch.width)
 
@@ -156,7 +171,7 @@ struct TopRow: View {
                 }
             }
             .padding(.leading, 8)
-            .frame(width: wing, alignment: .leading)
+            .frame(width: symmetric ? wing : r, alignment: .leading)
         }
         .frame(height: ui.notch.height)
     }
