@@ -57,7 +57,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
         }
-        store.start()
+        if CommandLine.arguments.contains("--demo") {   // sample sessions, no scanning (`--demo peek` pops the question)
+            Preview.sample(into: store)
+            if CommandLine.arguments.contains("peek") { store.peek = store.sessions.first }
+        } else {
+            store.start()
+        }
     }
 
     /// Center the panel under the screen that has the notch (or the main screen's menu bar).

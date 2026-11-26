@@ -55,12 +55,12 @@ enum SelfTest {
 /// `Vule --render out.png` — draws collapsed / peek / expanded with sample sessions, for design iteration.
 @MainActor
 enum Preview {
-    static func render(to path: String) {
+    /// Sample sessions for `--render` and `--demo` (README screenshots without real work on screen).
+    static func sample(into store: SessionStore) {
         func s(_ id: String, _ agent: Agent, _ tty: String, _ st: Status, _ preview: String) -> Session {
             Session(id: id, agent: agent, tty: tty, terminalID: id, cwd: "/x", status: st, firstPrompt: preview,
                     preview: preview, userName: nil, updated: .now)
         }
-        let store = SessionStore()
         var asking = s("a", .claude, "t1", .waiting, "")
         asking.question = Question(text: "Want me to run the migration against staging? It touches 3 tables.", options: ["Run on staging", "Dry-run first", "Skip it"])
         store.sessions = [
@@ -73,6 +73,11 @@ enum Preview {
                        "c": .init(emoji: "🔍", title: "Auth PR Review"), "d": .init(emoji: "💬", title: "Kafka Retries")]
         store.colors = ["a": 0, "b": 2, "c": 1, "d": 5]
         store.focusedTTY = "t2"
+    }
+
+    static func render(to path: String) {
+        let store = SessionStore()
+        sample(into: store)
 
         func shot(_ configure: (NotchUI) -> Void, peek: Session? = nil) -> NSImage? {
             let ui = NotchUI()

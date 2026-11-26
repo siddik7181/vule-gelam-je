@@ -8,6 +8,7 @@ final class NotchUI {
     var selectedID: String?
     var draft = ""
     var shapeSize: CGSize = .zero
+    var cardsHeight: CGFloat = 0   // natural height of the session list; past 330pt it scrolls
     var focusField = false
     var onRelease: () -> Void = {}
 }
@@ -193,9 +194,7 @@ struct ExpandedView: View {
         @Bindable var ui = ui
         VStack(spacing: 10) {
             TopRow()
-            // Rough card heights (base + question + option rows) decide whether the list needs to scroll.
-            let rows = store.sessions.reduce(0) { $0 + 64 + ($1.question.map { 22 + 26 * $0.options.count } ?? 0) }
-            if rows <= 330 { cards } else { ScrollView { cards }.scrollIndicators(.never).frame(height: 330) }
+            if ui.cardsHeight <= 330 { cards } else { ScrollView { cards }.scrollIndicators(.never).frame(height: 330) }
 
             if let s = selected { replyBar(s, draft: $ui.draft) }
         }
@@ -215,6 +214,10 @@ struct ExpandedView: View {
                     .onTapGesture(count: 2) { Ghostty.focus(s.terminalID) }
                     .onTapGesture { ui.selectedID = s.id; fieldFocused = true }
             }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { h in
+            if abs(ui.cardsHeight - h) > 0.5 { ui.cardsHeight = h }
         }
     }
 
