@@ -124,7 +124,11 @@ struct TopRow: View {
     @Environment(NotchUI.self) var ui
 
     var body: some View {
-        let wing: CGFloat = store.focused == nil ? max(44, CGFloat(store.sessions.count) * 15 + 20) : 170
+        // Wings hug their content (both sides equal so the notch stays centred), capped so menu-bar items stay visible.
+        let n = CGFloat(store.sessions.count)
+        let dots = n * 14 + max(0, n - 1) * 7 + 12
+        let title = store.focused.map { 8 + 18 + 6 + ceil((store.title($0) as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12, weight: .semibold)]).width) + 6 } ?? 0
+        let wing = min(140, max(44, dots, title))
         HStack(spacing: 0) {
             HStack(spacing: 7) {
                 ForEach(store.sessions) { s in StatusDot(session: s, focused: s.tty == store.focusedTTY) }
